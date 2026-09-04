@@ -5,52 +5,79 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  Alert,
   Platform,
   KeyboardAvoidingView,
   ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { stations } from '@/constants/mockData';
+import { showAlert } from '@/lib/alert';
+
+const MAX_REVIEW_LENGTH = 500;
 
 export default function ReviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const station = stations.find(s => s.id === id);
+
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
-
   const [cleanlinessRating, setCleanlinessRating] = useState(0);
   const [safetyRating, setSafetyRating] = useState(0);
   const [chargerRating, setChargerRating] = useState(0);
 
   const handleSubmit = () => {
     if (rating === 0) {
-      Alert.alert('Avaliação', 'Por favor, selecione uma nota geral.');
+      showAlert('Avaliação', 'Por favor, selecione uma nota geral.');
       return;
     }
-    Alert.alert('Obrigado!', 'Sua avaliação foi enviada com sucesso.', [
-      { text: 'OK', onPress: () => router.back() },
-    ]);
+
+    // Sem back-end no protótipo: apenas confirmamos o envio e voltamos.
+    showAlert('Obrigado!', 'Sua avaliação foi registrada.', () => router.back());
   };
 
-  if (!station) return null;
+  if (!station) {
+    return (
+      <View style={[styles.container, styles.notFound, { paddingTop: insets.top + Spacing.xxl }]}>
+        <Ionicons name="alert-circle-outline" size={48} color={Colors.textMuted} />
+        <Text style={styles.notFoundTitle}>Eletroposto não encontrado</Text>
+        <TouchableOpacity style={styles.notFoundBtn} onPress={() => router.back()} accessibilityRole="button">
+          <Text style={styles.notFoundBtnText}>Voltar</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
+        <TouchableOpacity
+          style={styles.closeBtn}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Fechar"
+        >
           <Ionicons name="close" size={14} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Avaliar Eletroposto</Text>
-        <View style={{ width: 48 }} />
+        <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Context Card */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Contexto */}
         <View style={styles.contextCard}>
           <View style={styles.contextIcon}>
             <Ionicons name="flash" size={18} color={Colors.primary} />
@@ -64,51 +91,66 @@ export default function ReviewScreen() {
           </View>
         </View>
 
-        {/* Overall Rating */}
+        {/* Nota geral */}
         <View style={styles.overallSection}>
           <Text style={styles.overallLabel}>Nota Geral</Text>
           <Text style={styles.overallHint}>Toque nas estrelas para avaliar</Text>
           <View style={styles.starsRow}>
-            {[1, 2, 3, 4, 5].map(s => (
-              <TouchableOpacity key={s} onPress={() => setRating(s)}>
+            {[1, 2, 3, 4, 5].map(star => (
+              <TouchableOpacity
+                key={star}
+                onPress={() => setRating(star)}
+                accessibilityRole="button"
+                accessibilityLabel={`Dar nota ${star} de 5`}
+              >
                 <Ionicons
-                  name={s <= rating ? 'star' : 'star-outline'}
+                  name={star <= rating ? 'star' : 'star-outline'}
                   size={40}
-                  color={s <= rating ? '#FFD700' : Colors.textMuted}
+                  color={star <= rating ? '#FFD700' : Colors.textMuted}
                 />
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
-        {/* Detailed Ratings */}
+        {/* Notas detalhadas */}
         <View style={styles.detailedSection}>
           <RatingRow label="Limpeza" icon="sparkles" rating={cleanlinessRating} onRate={setCleanlinessRating} />
           <RatingRow label="Segurança" icon="shield-checkmark" rating={safetyRating} onRate={setSafetyRating} />
-          <RatingRow label="Qualidade dos Carregadores" icon="flash" rating={chargerRating} onRate={setChargerRating} />
+          <RatingRow
+            label="Qualidade dos Carregadores"
+            icon="flash"
+            rating={chargerRating}
+            onRate={setChargerRating}
+            isLast
+          />
         </View>
 
-        {/* Written Review */}
+        {/* Texto */}
         <View style={styles.textSection}>
           <Text style={styles.textLabel}>ESCREVA UMA AVALIAÇÃO</Text>
           <View style={styles.textArea}>
             <TextInput
-              style={styles.textInput}
+              style={[styles.textInput, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]}
               placeholder="Compartilhe detalhes da sua experiência neste local..."
               placeholderTextColor={Colors.textMuted}
               multiline
               numberOfLines={5}
+              maxLength={MAX_REVIEW_LENGTH}
               textAlignVertical="top"
               value={reviewText}
               onChangeText={setReviewText}
             />
           </View>
+          <Text style={styles.charCount}>
+            {reviewText.length}/{MAX_REVIEW_LENGTH}
+          </Text>
         </View>
       </ScrollView>
 
-      {/* Submit */}
-      <View style={styles.footer}>
-        <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
+      {/* Enviar */}
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, Spacing.xl) }]}>
+        <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit} accessibilityRole="button">
           <Text style={styles.submitText}>Publicar Avaliação</Text>
           <Ionicons name="send" size={16} color={Colors.background} />
         </TouchableOpacity>
@@ -117,22 +159,37 @@ export default function ReviewScreen() {
   );
 }
 
-function RatingRow({ label, icon, rating, onRate }: {
-  label: string; icon: string; rating: number; onRate: (v: number) => void;
+function RatingRow({
+  label,
+  icon,
+  rating,
+  onRate,
+  isLast = false,
+}: {
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  rating: number;
+  onRate: (value: number) => void;
+  isLast?: boolean;
 }) {
   return (
-    <View style={styles.ratingRow}>
+    <View style={[styles.ratingRow, isLast && styles.ratingRowLast]}>
       <View style={styles.ratingRowLeft}>
-        <Ionicons name={icon as any} size={16} color={Colors.primary} />
+        <Ionicons name={icon} size={16} color={Colors.primary} />
         <Text style={styles.ratingRowLabel}>{label}</Text>
       </View>
       <View style={styles.miniStars}>
-        {[1, 2, 3, 4, 5].map(s => (
-          <TouchableOpacity key={s} onPress={() => onRate(s)}>
+        {[1, 2, 3, 4, 5].map(star => (
+          <TouchableOpacity
+            key={star}
+            onPress={() => onRate(star)}
+            accessibilityRole="button"
+            accessibilityLabel={`${label}: nota ${star} de 5`}
+          >
             <Ionicons
-              name={s <= rating ? 'star' : 'star-outline'}
+              name={star <= rating ? 'star' : 'star-outline'}
               size={20}
-              color={s <= rating ? '#FFD700' : Colors.textMuted}
+              color={star <= rating ? '#FFD700' : Colors.textMuted}
             />
           </TouchableOpacity>
         ))}
@@ -143,18 +200,28 @@ function RatingRow({ label, icon, rating, onRate }: {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+
+  notFound: { alignItems: 'center', justifyContent: 'center', gap: Spacing.md, paddingHorizontal: Spacing.xl },
+  notFoundTitle: { ...Typography.titleSmall, color: Colors.textPrimary, textAlign: 'center' },
+  notFoundBtn: {
+    marginTop: Spacing.md, paddingHorizontal: Spacing.xxl, paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md, backgroundColor: Colors.primary,
+  },
+  notFoundBtnText: { ...Typography.headingMedium, fontSize: 16, color: Colors.background },
+
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 56 : 36, paddingHorizontal: Spacing.xl, paddingBottom: Spacing.lg,
+    paddingHorizontal: Spacing.xl, paddingBottom: Spacing.lg,
     borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle,
   },
   closeBtn: {
     width: 48, height: 48, borderRadius: 24,
     backgroundColor: Colors.surfaceSolid, alignItems: 'center', justifyContent: 'center',
   },
+  headerSpacer: { width: 48 },
   headerTitle: { ...Typography.headingMedium, color: Colors.textPrimary },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: Spacing.xl, paddingBottom: 120, gap: Spacing.xxl, paddingTop: Spacing.xxl },
+  scrollContent: { paddingHorizontal: Spacing.xl, paddingBottom: 140, gap: Spacing.xxl, paddingTop: Spacing.xxl },
 
   contextCard: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
@@ -169,7 +236,7 @@ const styles = StyleSheet.create({
   contextInfo: { flex: 1, gap: 4 },
   contextName: { ...Typography.headingMedium, color: Colors.textPrimary },
   contextAddress: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  contextAddressText: { ...Typography.bodySmall, color: Colors.textMuted },
+  contextAddressText: { ...Typography.bodySmall, color: Colors.textMuted, flex: 1 },
 
   overallSection: { alignItems: 'center', gap: Spacing.sm },
   overallLabel: { ...Typography.titleSmall, color: Colors.textPrimary },
@@ -181,11 +248,12 @@ const styles = StyleSheet.create({
     padding: Spacing.lg, gap: Spacing.lg, borderWidth: 1, borderColor: Colors.borderSubtle,
   },
   ratingRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.sm,
     paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.borderSubtle,
   },
-  ratingRowLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  ratingRowLabel: { ...Typography.headingMedium, color: Colors.textPrimary, fontSize: 16 },
+  ratingRowLast: { borderBottomWidth: 0 },
+  ratingRowLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
+  ratingRowLabel: { ...Typography.headingMedium, color: Colors.textPrimary, fontSize: 16, flexShrink: 1 },
   miniStars: { flexDirection: 'row', gap: 4 },
 
   textSection: { gap: Spacing.sm },
@@ -195,17 +263,18 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.borderSubtle, padding: Spacing.lg, minHeight: 130,
   },
   textInput: { ...Typography.bodyLarge, color: Colors.textPrimary, minHeight: 100 },
+  charCount: { ...Typography.caption, color: Colors.textMuted, alignSelf: 'flex-end' },
 
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    padding: Spacing.xl, paddingBottom: Platform.OS === 'ios' ? 34 : Spacing.xl,
+    paddingHorizontal: Spacing.xl, paddingTop: Spacing.xl,
     backgroundColor: Colors.background, borderTopWidth: 1, borderTopColor: Colors.borderSubtle,
   },
   submitBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
     backgroundColor: Colors.primary, borderRadius: BorderRadius.md,
     paddingVertical: Spacing.lg,
-    shadowColor: '#00FF66', shadowOpacity: 0.3, shadowRadius: 15,
+    shadowColor: Colors.primary, shadowOpacity: 0.3, shadowRadius: 15,
     shadowOffset: { width: 0, height: 0 }, elevation: 8,
   },
   submitText: { ...Typography.headingMedium, color: Colors.background },

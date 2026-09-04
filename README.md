@@ -1,50 +1,80 @@
-# Welcome to your Expo app 👋
+# Flui ⚡
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplicativo de busca de eletropostos (estações de recarga para veículos elétricos) em São Paulo.
+Projeto acadêmico desenvolvido com **Expo / React Native** para o FIAP Challenge.
 
-## Get started
+> Protótipo de front-end: todos os dados vêm de `constants/mockData.ts`. Não há back-end,
+> autenticação nem persistência — filtros e favoritos vivem apenas na memória da sessão.
 
-1. Install dependencies
+## Funcionalidades
 
-   ```bash
-   npm install
-   ```
+- **Mapa** com marcadores que mostram a fração de conectores livres (`livres/total`) e cor por disponibilidade.
+- **Busca** por nome ou endereço + **filtros** por conector, potência mínima, disponibilidade e comodidades.
+- **Prévia da estação** em bottom sheet, com preço, conectores e atalho para a rota (Waze → Google Maps → web).
+- **Ficha completa** da estação: comodidades, gráfico de horário de pico e avaliações.
+- **Formulário de avaliação** com nota geral e notas por critério.
+- **Atividade**: histórico de recargas e eletropostos salvos.
+- **Perfil**: dados do usuário, veículo e estatísticas de uso.
 
-2. Start the app
+## Tecnologias
 
-   ```bash
-   npx expo start
-   ```
+| Camada | Ferramenta |
+| --- | --- |
+| Framework | Expo SDK 54 + React Native 0.81 (New Architecture) |
+| Navegação | `expo-router` (file-based routing) |
+| Mapa nativo | `react-native-maps` (Google Maps) |
+| Mapa web | Leaflet + tiles CartoDB dark, dentro de um `iframe` |
+| Bottom sheet | `@gorhom/bottom-sheet` + `react-native-reanimated` |
+| Tipagem | TypeScript em modo `strict` |
 
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Como rodar
 
 ```bash
-npm run reset-project
+npm install
+npm start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Depois escolha a plataforma no terminal do Expo (`a` Android, `i` iOS, `w` web),
+ou use os atalhos: `npm run android`, `npm run ios`, `npm run web`.
 
-## Learn more
+### Chave do Google Maps (somente Android)
 
-To learn more about developing your project with Expo, look at the following resources:
+O mapa nativo no Android exige uma chave da *Google Maps SDK for Android*:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+cp .env.example .env   # e preencha GOOGLE_MAPS_API_KEY
+```
 
-## Join the community
+A chave é injetada em `app.config.js` e **não** é versionada. Sem ela o mapa aparece
+em branco no Android; iOS (Apple Maps) e web (Leaflet) funcionam normalmente.
 
-Join our community of developers creating universal apps.
+### Verificações
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npm run lint
+npm run typecheck
+```
+
+## Estrutura
+
+```
+app/                     Rotas (expo-router)
+  (tabs)/                Mapa, Atividade e Perfil com TabBar customizada
+  station/[id].tsx       Ficha completa do eletroposto
+  review/[id].tsx        Formulário de avaliação
+  filters.tsx            Modal de filtros
+components/              MapScreen (nativo e .web), marcador, prévia da estação
+constants/               Design tokens, dados mockados, estilo do mapa, medidas
+context/AppProvider.tsx  Estado compartilhado: filtros aplicados e favoritos
+lib/                     Regras puras: disponibilidade, filtros, rotas e alertas
+```
+
+### Decisões de arquitetura
+
+- **Disponibilidade é sempre derivada** de `totalConnections - occupiedConnections`
+  (`lib/stations.ts`). Nenhuma tela guarda um booleano paralelo, o que evita o marcador
+  dizer "0/2 livres" enquanto a ficha diz "Disponível".
+- **`MapScreen.web.tsx`** substitui `react-native-maps` (que não roda no navegador) por um
+  mapa Leaflet em `iframe`, com comunicação via `postMessage`. O React Native escolhe o
+  arquivo `.web.tsx` automaticamente no bundle web.
+- **`lib/`** concentra regras sem UI para não duplicar lógica entre as versões nativa e web.

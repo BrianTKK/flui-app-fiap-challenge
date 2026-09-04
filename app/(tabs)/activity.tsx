@@ -5,42 +5,50 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { TAB_BAR_SPACE } from '@/constants/layout';
 import {
   stations,
   chargingHistory,
-  savedStations,
   ChargingStation,
   ChargingHistory,
 } from '@/constants/mockData';
+import { isStationAvailable } from '@/lib/stations';
+import { useSavedStations } from '@/context/AppProvider';
 
 type Tab = 'historico' | 'salvos';
 
 export default function ActivityScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<Tab>('historico');
+  const { savedIds, toggleSaved } = useSavedStations();
 
   const saved = useMemo(
-    () => stations.filter(s => savedStations.includes(s.id)),
-    []
+    () => stations.filter(s => savedIds.includes(s.id)),
+    [savedIds]
   );
 
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
         <View style={styles.headerBtn} />
         <Text style={styles.headerTitle}>Flui</Text>
-        <TouchableOpacity style={styles.headerBtn}>
+        <TouchableOpacity
+          style={styles.headerBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Notificações"
+        >
           <Ionicons name="notifications-outline" size={18} color={Colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
-      {/* Content */}
+      {/* Conteudo */}
       <View style={styles.content}>
         <Text style={styles.pageTitle}>Atividade</Text>
 
@@ -49,6 +57,8 @@ export default function ActivityScreen() {
           <TouchableOpacity
             style={[styles.segment, activeTab === 'historico' && styles.segmentActive]}
             onPress={() => setActiveTab('historico')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === 'historico' }}
           >
             <Text style={[styles.segmentText, activeTab === 'historico' && styles.segmentTextActive]}>
               Histórico
@@ -57,6 +67,8 @@ export default function ActivityScreen() {
           <TouchableOpacity
             style={[styles.segment, activeTab === 'salvos' && styles.segmentActive]}
             onPress={() => setActiveTab('salvos')}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: activeTab === 'salvos' }}
           >
             <Text style={[styles.segmentText, activeTab === 'salvos' && styles.segmentTextActive]}>
               Salvos
@@ -64,13 +76,14 @@ export default function ActivityScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Lists */}
+        {/* Listas */}
         {activeTab === 'historico' ? (
           <FlatList
             data={chargingHistory}
             keyExtractor={item => item.id}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: TAB_BAR_SPACE + insets.bottom }]}
             showsVerticalScrollIndicator={false}
+            ListEmptyComponent={<EmptyState message="Nenhuma recarga registrada ainda." />}
             renderItem={({ item }) => (
               <HistoryCard item={item} onPress={() => router.push(`/station/${item.stationId}`)} />
             )}
@@ -79,14 +92,28 @@ export default function ActivityScreen() {
           <FlatList
             data={saved}
             keyExtractor={item => item.id}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: TAB_BAR_SPACE + insets.bottom }]}
             showsVerticalScrollIndicator={false}
+            ListEmptyComponent={<EmptyState message="Você ainda não salvou nenhum eletroposto." />}
             renderItem={({ item }) => (
-              <SavedCard item={item} onPress={() => router.push(`/station/${item.id}`)} />
+              <SavedCard
+                item={item}
+                onPress={() => router.push(`/station/${item.id}`)}
+                onToggleSaved={() => toggleSaved(item.id)}
+              />
             )}
           />
         )}
       </View>
+    </View>
+  );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <View style={styles.emptyState}>
+      <Ionicons name="flash-outline" size={32} color={Colors.textMuted} />
+      <Text style={styles.emptyText}>{message}</Text>
     </View>
   );
 }
@@ -112,13 +139,24 @@ function HistoryCard({ item, onPress }: { item: ChargingHistory; onPress: () => 
   );
 }
 
-function SavedCard({ item, onPress }: { item: ChargingStation; onPress: () => void }) {
+function SavedCard({
+  item,
+  onPress,
+  onToggleSaved,
+}: {
+  item: ChargingStation;
+  onPress: () => void;
+  onToggleSaved: () => void;
+}) {
+  const available = isStationAvailable(item);
+  const statusColor = available ? Colors.available : Colors.occupied;
+
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
-      <View style={[styles.cardAccent, { backgroundColor: item.available ? Colors.available : Colors.occupied }]} />
+      <View style={[styles.cardAccent, { backgroundColor: statusColor }]} />
       <View style={styles.cardLeft}>
         <View style={styles.cardIcon}>
-          <Ionicons name="flash" size={16} color={item.available ? Colors.available : Colors.occupied} />
+          <Ionicons name="flash" size={16} color={statusColor} />
         </View>
         <View style={styles.cardInfo}>
           <Text style={styles.cardTitle}>{item.name}</Text>
@@ -127,11 +165,16 @@ function SavedCard({ item, onPress }: { item: ChargingStation; onPress: () => vo
         </View>
       </View>
       <View style={styles.cardRight}>
-        <Text style={styles.cardEnergy}>{item.available ? 'Livre' : 'Ocupado'}</Text>
-        <Text style={[styles.cardCost, { color: item.available ? Colors.available : Colors.occupied }]}>
+        <Text style={styles.cardEnergy}>{available ? 'Livre' : 'Ocupado'}</Text>
+        <Text style={[styles.cardCost, { color: statusColor }]}>
           R$ {item.pricePerKwh.toFixed(2).replace('.', ',')}/kWh
         </Text>
-        <TouchableOpacity>
+        <TouchableOpacity
+          onPress={onToggleSaved}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel={`Remover ${item.name} dos favoritos`}
+        >
           <Ionicons name="heart" size={20} color={Colors.primary} />
         </TouchableOpacity>
       </View>
@@ -148,14 +191,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 56 : 36,
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.sm,
     backgroundColor: Colors.surfaceSolid,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderSubtle,
-    shadowColor: '#000000', shadowOpacity: 0.3, shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 }, elevation: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
   headerBtn: {
     width: 48,
@@ -207,7 +252,16 @@ const styles = StyleSheet.create({
   },
   listContent: {
     gap: Spacing.md,
-    paddingBottom: 120,
+  },
+  emptyState: {
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: Spacing.section,
+  },
+  emptyText: {
+    ...Typography.bodyMedium,
+    color: Colors.textMuted,
+    textAlign: 'center',
   },
   card: {
     flexDirection: 'row',

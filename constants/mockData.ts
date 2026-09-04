@@ -2,13 +2,14 @@
 
 export type ConnectorType = 'CCS2' | 'Type2' | 'CHAdeMO' | 'Tesla';
 
+export const CONNECTOR_TYPES: ConnectorType[] = ['CCS2', 'Type2', 'CHAdeMO', 'Tesla'];
+
 export interface ChargingStation {
   id: string;
   name: string;
   address: string;
   latitude: number;
   longitude: number;
-  available: boolean;
   fastCharger: boolean;
   power: number; // kW
   connectors: ConnectorType[];
@@ -38,7 +39,7 @@ export interface ChargingHistory {
 export interface UserProfile {
   name: string;
   email: string;
-  vehicle: string;
+  vehicleLabel: string;
   vehicleModel: string;
   batteryCapacity: string;
   totalCharges: number;
@@ -48,6 +49,8 @@ export interface UserProfile {
 }
 
 // Eletropostos (Localizados em São Paulo - SP)
+// A disponibilidade nunca e armazenada: ela e derivada de
+// `totalConnections - occupiedConnections` (ver `lib/stations.ts`).
 export const stations: ChargingStation[] = [
   {
     id: '1',
@@ -55,7 +58,6 @@ export const stations: ChargingStation[] = [
     address: 'Av. Paulista, 1578 - Bela Vista, SP',
     latitude: -23.5615,
     longitude: -46.6559,
-    available: true,
     fastCharger: true,
     power: 150,
     connectors: ['CCS2', 'Type2'],
@@ -75,7 +77,6 @@ export const stations: ChargingStation[] = [
     address: 'Av. Pedro Álvares Cabral - Vila Mariana, SP',
     latitude: -23.5874,
     longitude: -46.6576,
-    available: true,
     fastCharger: false,
     power: 22,
     connectors: ['Type2'],
@@ -95,11 +96,10 @@ export const stations: ChargingStation[] = [
     address: 'Av. Faria Lima, 3477 - Itaim Bibi, SP',
     latitude: -23.5862,
     longitude: -46.6823,
-    available: false,
     fastCharger: true,
     power: 100,
     connectors: ['CCS2', 'CHAdeMO'],
-    occupiedConnections: 2,
+    occupiedConnections: 3,
     totalConnections: 3,
     pricePerKwh: 2.19,
     rating: 4.5,
@@ -115,7 +115,6 @@ export const stations: ChargingStation[] = [
     address: 'R. Funchal, 411 - Vila Olímpia, SP',
     latitude: -23.5959,
     longitude: -46.6868,
-    available: true,
     fastCharger: true,
     power: 120,
     connectors: ['CCS2', 'Type2'],
@@ -135,7 +134,6 @@ export const stations: ChargingStation[] = [
     address: 'R. dos Pinheiros, 870 - Pinheiros, SP',
     latitude: -23.5670,
     longitude: -46.6919,
-    available: true,
     fastCharger: false,
     power: 22,
     connectors: ['Type2'],
@@ -155,12 +153,11 @@ export const stations: ChargingStation[] = [
     address: 'Av. Ibirapuera, 2907 - Moema, SP',
     latitude: -23.6024,
     longitude: -46.6651,
-    available: true,
     fastCharger: true,
     power: 150,
     connectors: ['CCS2', 'Type2', 'Tesla'],
     occupiedConnections: 2,
-    totalConnections: 2,
+    totalConnections: 4,
     pricePerKwh: 2.09,
     rating: 4.6,
     reviewCount: 201,
@@ -214,17 +211,18 @@ export const chargingHistory: ChargingHistory[] = [
   },
 ];
 
-export const savedStations: string[] = ['1', '4', '6']; // station IDs
+/** IDs das estacoes que ja vem marcadas como favoritas (estado inicial). */
+export const savedStations: string[] = ['1', '4', '6'];
 
 export const userProfile: UserProfile = {
   name: 'Carlos Eduardo',
   email: 'carlos.eduardo@email.com',
-  vehicle: 'Meu Veículo',
+  vehicleLabel: 'Meu Veículo',
   vehicleModel: 'BYD Dolphin Mini',
-  batteryCapacity: '⚡ Bateria: 38 kWh',
+  batteryCapacity: '38 kWh',
   totalCharges: 47,
   totalEnergy: '1.2 MWh',
-  memberSince: 'Membro desde Jan 2025',
+  memberSince: 'Jan 2025',
   avatarUrl: undefined,
 };
 

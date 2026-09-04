@@ -1,15 +1,25 @@
 import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
+import { TAB_BAR_HEIGHT, TAB_BAR_MARGIN } from '@/constants/layout';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
+const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  map: 'map',
+  activity: 'time',
+  profile: 'person',
+};
+
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const insets = useSafeAreaInsets();
+
   return (
-    <View style={styles.tabBar}>
+    <View style={[styles.tabBar, { bottom: Math.max(TAB_BAR_MARGIN, insets.bottom) }]}>
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
-        const label = options.title !== undefined ? options.title : route.name;
+        const label = options.title ?? route.name;
         const isFocused = state.index === index;
 
         const onPress = () => {
@@ -24,31 +34,23 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           }
         };
 
-        let iconName: keyof typeof Ionicons.glyphMap = 'map';
-        if (route.name === 'activity') iconName = 'time';
-        if (route.name === 'profile') iconName = 'person';
-
         return (
           <TouchableOpacity
             key={route.key}
             accessibilityRole="button"
-            accessibilityState={isFocused ? { selected: true } : {}}
-            accessibilityLabel={(options as any).tabBarAccessibilityLabel}
-            testID={(options as any).tabBarTestID}
+            accessibilityState={{ selected: isFocused }}
+            accessibilityLabel={options.tabBarAccessibilityLabel ?? label}
+            testID={options.tabBarButtonTestID}
             onPress={onPress}
             activeOpacity={0.8}
             style={[styles.tabItem, isFocused && styles.tabItemActive]}
           >
             <Ionicons
-              name={iconName}
+              name={TAB_ICONS[route.name] ?? 'ellipse'}
               size={18}
               color={isFocused ? Colors.background : Colors.textSecondary}
             />
-            {isFocused && (
-              <Text style={styles.tabLabel}>
-                {label as string}
-              </Text>
-            )}
+            {isFocused && <Text style={styles.tabLabel}>{label}</Text>}
           </TouchableOpacity>
         );
       })}
@@ -72,17 +74,16 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    bottom: 16,
-    left: 16,
-    right: 16,
-    height: 64,
-    borderRadius: 32,
+    left: TAB_BAR_MARGIN,
+    right: TAB_BAR_MARGIN,
+    height: TAB_BAR_HEIGHT,
+    borderRadius: TAB_BAR_HEIGHT / 2,
     backgroundColor: 'rgba(24, 34, 24, 0.95)',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,
     elevation: 10,
-    shadowColor: '#00FF66',
+    shadowColor: Colors.primary,
     shadowOpacity: 0.1,
     shadowRadius: 30,
     shadowOffset: { width: 0, height: 10 },

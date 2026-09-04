@@ -5,42 +5,56 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
+import { TAB_BAR_SPACE } from '@/constants/layout';
 import { userProfile } from '@/constants/mockData';
+import { showAlert } from '@/lib/alert';
 
-const menuItems = [
-  { icon: 'car-sport' as const, label: 'Gerenciar Veículos', route: '' },
-  { icon: 'card' as const, label: 'Métodos de Pagamento', route: '' },
-  { icon: 'settings' as const, label: 'Configurações do App', route: '' },
-  { icon: 'help-circle' as const, label: 'Central de Ajuda e Suporte', route: '' },
-  { icon: 'log-out' as const, label: 'Encerrar Sessão', route: '', danger: true },
+const CARD_GRADIENT = ['#1A2E1A', '#0D1F0D'] as const;
+
+const menuItems: { icon: keyof typeof Ionicons.glyphMap; label: string }[] = [
+  { icon: 'car-sport', label: 'Gerenciar Veículos' },
+  { icon: 'card', label: 'Métodos de Pagamento' },
+  { icon: 'settings', label: 'Configurações do App' },
+  { icon: 'help-circle', label: 'Central de Ajuda e Suporte' },
 ];
 
 export default function ProfileScreen() {
-  const router = useRouter();
+  const insets = useSafeAreaInsets();
+
+  // O protótipo não tem back-end: avisamos em vez de deixar o botão morto.
+  const notImplemented = (feature: string) =>
+    showAlert(feature, 'Esta função ainda não está disponível no protótipo.');
 
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
         <View style={styles.headerBtn} />
         <Text style={styles.headerTitle}>Flui</Text>
-        <TouchableOpacity style={styles.headerBtn}>
+        <TouchableOpacity
+          style={styles.headerBtn}
+          onPress={() => notImplemented('Configurações')}
+          accessibilityRole="button"
+          accessibilityLabel="Configurações"
+        >
           <Ionicons name="settings-outline" size={18} color={Colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: TAB_BAR_SPACE + insets.bottom },
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Avatar Section */}
+        {/* Avatar */}
         <View style={styles.profileSection}>
           <View style={styles.avatarContainer}>
             <LinearGradient
@@ -51,33 +65,38 @@ export default function ProfileScreen() {
             </LinearGradient>
           </View>
           <Text style={styles.profileName}>{userProfile.name}</Text>
-          <Text style={styles.profileEmail}>{userProfile.memberSince}</Text>
+          <Text style={styles.profileEmail}>{userProfile.email}</Text>
+          <Text style={styles.profileMeta}>Membro desde {userProfile.memberSince}</Text>
         </View>
 
-        {/* Vehicle Card */}
+        {/* Veículo */}
         <LinearGradient
-          colors={['#1A2E1A', '#0D1F0D']}
+          colors={CARD_GRADIENT}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.vehicleCard}
         >
-          <View style={styles.vehicleContent}>
+          <TouchableOpacity
+            style={styles.vehicleContent}
+            onPress={() => notImplemented('Gerenciar Veículos')}
+            accessibilityRole="button"
+          >
             <View style={styles.vehicleIconBox}>
               <Ionicons name="car-sport" size={18} color={Colors.primary} />
             </View>
             <View style={styles.vehicleInfo}>
-              <Text style={styles.vehicleLabel}>{userProfile.vehicle}</Text>
+              <Text style={styles.vehicleLabel}>{userProfile.vehicleLabel}</Text>
               <Text style={styles.vehicleModel}>{userProfile.vehicleModel}</Text>
               <View style={styles.vehicleBattery}>
                 <Ionicons name="flash" size={12} color={Colors.primary} />
-                <Text style={styles.vehicleBatteryText}>{userProfile.batteryCapacity}</Text>
+                <Text style={styles.vehicleBatteryText}>Bateria: {userProfile.batteryCapacity}</Text>
               </View>
             </View>
             <Ionicons name="chevron-forward" size={14} color={Colors.textMuted} />
-          </View>
+          </TouchableOpacity>
         </LinearGradient>
 
-        {/* Stats Grid */}
+        {/* Estatísticas */}
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
             <Ionicons name="flash" size={22} color={Colors.primary} />
@@ -92,32 +111,29 @@ export default function ProfileScreen() {
         </View>
 
         {/* Menu */}
-        <LinearGradient
-          colors={['#1A2E1A', '#0D1F0D']}
-          style={styles.menuContainer}
-        >
+        <LinearGradient colors={CARD_GRADIENT} style={styles.menuContainer}>
           {menuItems.map((item, index) => (
             <TouchableOpacity
-              key={index}
+              key={item.label}
               style={[styles.menuItem, index < menuItems.length - 1 && styles.menuItemBorder]}
+              onPress={() => notImplemented(item.label)}
+              accessibilityRole="button"
             >
               <View style={styles.menuItemLeft}>
-                <Ionicons
-                  name={item.icon}
-                  size={20}
-                  color={item.danger ? Colors.occupied : Colors.textSecondary}
-                />
-                <Text style={[styles.menuItemText, item.danger && { color: Colors.occupied }]}>
-                  {item.label}
-                </Text>
+                <Ionicons name={item.icon} size={20} color={Colors.textSecondary} />
+                <Text style={styles.menuItemText}>{item.label}</Text>
               </View>
               <Ionicons name="chevron-forward" size={14} color={Colors.textMuted} />
             </TouchableOpacity>
           ))}
         </LinearGradient>
 
-        {/* Logout */}
-        <TouchableOpacity style={styles.logoutButton}>
+        {/* Sair */}
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={() => notImplemented('Encerrar Sessão')}
+          accessibilityRole="button"
+        >
           <Ionicons name="log-out" size={18} color={Colors.occupied} />
           <Text style={styles.logoutText}>Encerrar Sessão</Text>
         </TouchableOpacity>
@@ -135,7 +151,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 56 : 36,
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.sm,
     backgroundColor: Colors.surfaceSolid,
@@ -157,14 +172,13 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.xl,
-    paddingBottom: 120,
     gap: Spacing.xxl,
   },
 
-  // Profile
+  // Perfil
   profileSection: {
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
   avatarContainer: {
     marginBottom: Spacing.sm,
@@ -175,7 +189,7 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#00FF66', shadowOpacity: 0.3, shadowRadius: 15,
+    shadowColor: Colors.primary, shadowOpacity: 0.3, shadowRadius: 15,
     shadowOffset: { width: 0, height: 0 }, elevation: 8,
   },
   profileName: {
@@ -183,11 +197,15 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   profileEmail: {
-    ...Typography.bodyLarge,
+    ...Typography.bodyMedium,
+    color: Colors.textSecondary,
+  },
+  profileMeta: {
+    ...Typography.bodySmall,
     color: Colors.textMuted,
   },
 
-  // Vehicle Card
+  // Veículo
   vehicleCard: {
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
@@ -234,7 +252,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
 
-  // Stats
+  // Estatísticas
   statsGrid: {
     flexDirection: 'row',
     gap: Spacing.lg,
@@ -287,7 +305,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
-  // Logout
+  // Sair
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',

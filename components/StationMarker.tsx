@@ -1,5 +1,10 @@
 import { ChargingStation } from '@/constants/mockData';
 import { Colors } from '@/constants/theme';
+import {
+  getAvailabilityPercentage,
+  getAvailableConnections,
+  getTotalConnections,
+} from '@/lib/stations';
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Marker } from 'react-native-maps';
@@ -10,42 +15,34 @@ interface StationMarkerProps {
 }
 
 export default function StationMarker({ station, onPress }: StationMarkerProps) {
-  const totalConnections = station.totalConnections || 0;
-  const occupiedConnections = station.occupiedConnections || 0;
-
-  const availableConnections = totalConnections - occupiedConnections;
-
-  let percentage = 0;
-  if (totalConnections > 0) {
-    percentage = (availableConnections / totalConnections) * 100;
-  }
-
-  percentage = Math.max(0, Math.min(100, percentage));
-
-  const isAvailable = availableConnections > 0;
-  const color = isAvailable ? Colors.available : Colors.occupied;
+  const total = getTotalConnections(station);
+  const available = getAvailableConnections(station);
+  const percentage = getAvailabilityPercentage(station);
+  const color = available > 0 ? Colors.available : Colors.occupied;
 
   return (
     <Marker
       coordinate={{ latitude: station.latitude, longitude: station.longitude }}
       onPress={onPress}
-      // Adicionamos centerOffset para compensar fisicamente o eixo 
+      // `anchor` posiciona a ponta do triangulo na coordenada (Android);
+      // `centerOffset` faz o mesmo no iOS.
+      anchor={{ x: 0.5, y: 1 }}
       centerOffset={{ x: 0, y: -10 }}
     >
       <View style={styles.container}>
-        {/* Box de Fração */}
+        {/* Fracao de conectores livres */}
         <View style={styles.fractionBox}>
           <Text style={styles.fractionText}>
-            {availableConnections}/{totalConnections}
+            {available}/{total}
           </Text>
         </View>
 
-        {/* Barra de Progresso */}
+        {/* Barra de progresso */}
         <View style={styles.progressBarBg}>
           <View style={[styles.progressBarFill, { width: `${percentage}%`, backgroundColor: color }]} />
         </View>
 
-        {/* Triângulo (Pino do Mapa) com bordas CSS seguras sem dimensões negativas */}
+        {/* Ponta do pino */}
         <View style={[styles.triangle, { borderTopColor: color }]} />
       </View>
     </Marker>
@@ -56,8 +53,6 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    // Aumentar o padding garante que o Canvas Android tire o snapshot de todos os pixels da borda
-    padding: 0,
   },
   fractionBox: {
     backgroundColor: 'rgba(20,20,20,0.95)',
@@ -92,7 +87,6 @@ const styles = StyleSheet.create({
     borderRightWidth: 5,
     borderBottomWidth: 0,
     borderLeftWidth: 5,
-    borderTopColor: 'red', // será sobrescrito pelo estilo inline
     borderRightColor: 'transparent',
     borderBottomColor: 'transparent',
     borderLeftColor: 'transparent',

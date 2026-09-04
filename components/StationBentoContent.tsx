@@ -1,8 +1,10 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { ChargingStation } from '@/constants/mockData';
+import { getAvailableConnections, getTotalConnections } from '@/lib/stations';
+import { useSavedStations } from '@/context/AppProvider';
 
 interface StationBentoContentProps {
   station: ChargingStation;
@@ -10,13 +12,19 @@ interface StationBentoContentProps {
   onDetails: () => void;
 }
 
+/**
+ * Conteudo da previa da estacao. Nao traz container de scroll proprio:
+ * quem renderiza decide (BottomSheetScrollView no app, ScrollView na web).
+ */
 export default function StationBentoContent({ station, onNavigate, onDetails }: StationBentoContentProps) {
-  const available = station.totalConnections ? station.totalConnections - (station.occupiedConnections || 0) : 0;
-  const total = station.totalConnections || 0;
+  const available = getAvailableConnections(station);
+  const total = getTotalConnections(station);
   const isAvailable = available > 0;
+  const { isSaved, toggleSaved } = useSavedStations();
+  const saved = isSaved(station.id);
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <View>
       {/* Header */}
       <View style={styles.sheetHeader}>
         <View style={styles.sheetHeaderLeft}>
@@ -34,8 +42,13 @@ export default function StationBentoContent({ station, onNavigate, onDetails }: 
             </View>
           </View>
         </View>
-        <TouchableOpacity style={styles.favoriteBtn}>
-          <Ionicons name="heart-outline" size={20} color={Colors.primary} />
+        <TouchableOpacity
+          style={styles.favoriteBtn}
+          onPress={() => toggleSaved(station.id)}
+          accessibilityRole="button"
+          accessibilityLabel={saved ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
+        >
+          <Ionicons name={saved ? 'heart' : 'heart-outline'} size={20} color={Colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -65,35 +78,32 @@ export default function StationBentoContent({ station, onNavigate, onDetails }: 
         <View style={[styles.bentoCard, styles.bentoFull]}>
           <Text style={styles.bentoLabel}>Conectores</Text>
           <View style={styles.connectorsRow}>
-            {station.connectors.map((c, i) => (
-              <View key={i} style={styles.connectorChip}>
+            {station.connectors.map(connector => (
+              <View key={connector} style={styles.connectorChip}>
                 <Ionicons name="flash" size={14} color={Colors.primary} />
-                <Text style={styles.connectorText}>{c}</Text>
+                <Text style={styles.connectorText}>{connector}</Text>
               </View>
             ))}
           </View>
         </View>
       </View>
 
-      {/* Action Buttons */}
-      <TouchableOpacity style={styles.actionButton} onPress={onNavigate}>
+      {/* Acoes */}
+      <TouchableOpacity style={styles.actionButton} onPress={onNavigate} accessibilityRole="button">
         <Ionicons name="navigate" size={18} color={Colors.background} />
         <Text style={styles.actionButtonText}>Iniciar Rota</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.detailsLink} onPress={onDetails}>
+      <TouchableOpacity style={styles.detailsLink} onPress={onDetails} accessibilityRole="button">
         <Text style={styles.detailsLinkText}>Ver ficha completa</Text>
         <Ionicons name="chevron-forward" size={14} color={Colors.primary} />
       </TouchableOpacity>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  // Sheet Header
+  // Header
   sheetHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -190,6 +200,7 @@ const styles = StyleSheet.create({
   },
   connectorsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: Spacing.sm,
     marginTop: 4,
   },
@@ -207,7 +218,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
 
-  // Action Button
+  // Acoes
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -217,7 +228,7 @@ const styles = StyleSheet.create({
     height: 56,
     gap: Spacing.sm,
     marginBottom: Spacing.md,
-    shadowColor: '#00FF66',
+    shadowColor: Colors.primary,
     shadowOpacity: 0.3,
     shadowRadius: 15,
     shadowOffset: { width: 0, height: 0 },
@@ -232,7 +243,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
-    marginBottom: Spacing.xxl,
+    marginBottom: Spacing.md,
   },
   detailsLinkText: {
     ...Typography.bodyMedium,
