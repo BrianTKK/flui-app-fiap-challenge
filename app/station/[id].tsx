@@ -10,6 +10,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
+
 import { Colors, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { getAmenityIcon } from '@/constants/amenities';
 import { stations, peakHoursData, reviews } from '@/constants/mockData';
@@ -24,15 +27,25 @@ export default function StationDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isSaved, toggleSaved } = useSavedStations();
-  const station = stations.find(s => s.id === id);
+  const station = stations.find((s) => s.id === id);
 
-  // Horario de pico destacado = maior valor da serie (antes era um indice fixo).
-  const peakIndex = useMemo(() => {
-    let index = 0;
+  // Calcula o índice de pico e o período de menor movimento a partir dos dados
+  const { peakIndex, quietPeriod } = useMemo(() => {
+    let pIdx = 0;
+    let minIdx = 0;
     peakHoursData.forEach((point, i) => {
-      if (point.value > peakHoursData[index].value) index = i;
+      if (point.value > peakHoursData[pIdx].value) pIdx = i;
+      if (point.value < peakHoursData[minIdx].value) minIdx = i;
     });
-    return index;
+
+    const quietStart = peakHoursData[minIdx]?.hour ?? '14:00';
+    const quietHourNumber = parseInt(quietStart.split(':')[0], 10);
+    const quietEnd = `${String((quietHourNumber + 3) % 24).padStart(2, '0')}:00`;
+
+    return {
+      peakIndex: pIdx,
+      quietPeriod: `${quietStart} às ${quietEnd}`,
+    };
   }, []);
 
   if (!station) {
@@ -43,7 +56,12 @@ export default function StationDetailScreen() {
         <Text style={styles.notFoundText}>
           A estação que você tentou abrir não existe ou foi removida.
         </Text>
-        <TouchableOpacity style={styles.notFoundBtn} onPress={() => router.back()} accessibilityRole="button">
+        <TouchableOpacity
+          style={styles.notFoundBtn}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Voltar para a tela anterior"
+        >
           <Text style={styles.notFoundBtnText}>Voltar</Text>
         </TouchableOpacity>
       </View>
@@ -57,22 +75,37 @@ export default function StationDetailScreen() {
   const statusTint = isAvailable ? 'rgba(0,255,102,0.15)' : 'rgba(255,180,171,0.15)';
   const saved = isSaved(station.id);
 
+  const handleToggleFavorite = () => {
+    Haptics.selectionAsync();
+    toggleSaved(station.id);
+  };
+
+  const handleDirections = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    openDirections(station);
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
         <TouchableOpacity
           style={styles.headerBtn}
-          onPress={() => router.back()}
+          onPress={() => {
+            Haptics.selectionAsync();
+            router.back();
+          }}
           accessibilityRole="button"
           accessibilityLabel="Voltar"
         >
           <Ionicons name="arrow-back" size={16} color={Colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>{station.name}</Text>
+        <Text style={styles.headerTitle} numberOfLines={1}>
+          {station.name}
+        </Text>
         <TouchableOpacity
           style={styles.headerBtn}
-          onPress={() => toggleSaved(station.id)}
+          onPress={handleToggleFavorite}
           accessibilityRole="button"
           accessibilityLabel={saved ? 'Remover dos favoritos' : 'Salvar nos favoritos'}
         >
@@ -85,8 +118,8 @@ export default function StationDetailScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Hero */}
-        <View style={styles.hero}>
+        {/* Hero Animado */}
+        <Animated.View entering={FadeInDown.duration(400)} style={styles.hero}>
           <LinearGradient colors={['#1A3A1A', '#0D1F0D']} style={StyleSheet.absoluteFill} />
           <Ionicons name="flash" size={100} color="rgba(0,255,102,0.05)" style={styles.heroIcon} />
           <LinearGradient colors={['transparent', 'rgba(18,18,18,0.9)']} style={styles.heroGradient}>
@@ -110,10 +143,10 @@ export default function StationDetailScreen() {
               </View>
             </View>
           </LinearGradient>
-        </View>
+        </Animated.View>
 
-        {/* Cards técnicos */}
-        <View style={styles.bentoSection}>
+        {/* Bento Grid: Cards Técnicos */}
+        <Animated.View entering={FadeInUp.delay(100).duration(400)} style={styles.bentoSection}>
           <View style={styles.bentoRow}>
             <View style={[styles.bentoCard, styles.bentoFlex]}>
               <View style={styles.bentoIconRow}>
@@ -149,15 +182,26 @@ export default function StationDetailScreen() {
               </View>
             </View>
             <Text style={styles.bentoValue}>{station.connectors.join(' & ')}</Text>
-            <Text style={styles.bentoLabel}>TIPOS DE CONECTOR</Text>
+            <Text style={styles.bentoLabel}>TIPOS DE CONECTOR SUPORTADOS</Text>
           </View>
-        </View>
+        </Animated.View>
 
-        {/* Comodidades */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Comodidades</Text>
+        {/* Período de Menor Movimento (Exigência Direta da Etapa 2) */}
+        <Animated.View entering={FadeInUp.delay(180).duration(400)} style={styles.quietHoursCard}>
+          <View style={styles.quietHoursIconBox}>
+            <Ionicons name="leaf" size={20} color={Colors.primary} />
+          </View>
+          <View style={styles.quietHoursContent}>
+            <Text style={styles.quietHoursTitle}>Melhor Horário para Recarga</Text>
+            <Text style={styles.quietHoursTime}>{quietPeriod} (Menor fila esperada)</Text>
+          </View>
+        </Animated.View>
+
+        {/* Comodidades Próximas */}
+        <Animated.View entering={FadeInUp.delay(240).duration(400)} style={styles.section}>
+          <Text style={styles.sectionTitle}>Comodidades no Local</Text>
           <View style={styles.amenitiesRow}>
-            {station.amenities.map(amenity => (
+            {station.amenities.map((amenity) => (
               <View key={amenity} style={styles.amenityItem}>
                 <View style={styles.amenityIcon}>
                   <Ionicons name={getAmenityIcon(amenity)} size={20} color={Colors.primary} />
@@ -166,12 +210,12 @@ export default function StationDetailScreen() {
               </View>
             ))}
           </View>
-        </View>
+        </Animated.View>
 
-        {/* Horário de pico */}
-        <View style={styles.section}>
+        {/* Gráfico de Horário de Pico */}
+        <Animated.View entering={FadeInUp.delay(300).duration(400)} style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Horário de Pico</Text>
+            <Text style={styles.sectionTitle}>Fluxo de Ocupação Diária</Text>
             <View style={styles.todayBadge}>
               <Text style={styles.todayText}>Hoje</Text>
             </View>
@@ -198,16 +242,16 @@ export default function StationDetailScreen() {
             </Text>
             <Text style={styles.chartLabel}>{peakHoursData[peakHoursData.length - 1].hour}</Text>
           </View>
-        </View>
+        </Animated.View>
 
-        {/* Avaliações */}
-        <View style={styles.section}>
+        {/* Avaliações da Comunidade */}
+        <Animated.View entering={FadeInUp.delay(360).duration(400)} style={styles.section}>
           <Text style={styles.sectionTitle}>Avaliações da Comunidade</Text>
           <View style={styles.reviewSummary}>
             <Text style={styles.reviewScore}>{station.rating}</Text>
             <View>
               <View style={styles.starsRow}>
-                {[1, 2, 3, 4, 5].map(star => (
+                {[1, 2, 3, 4, 5].map((star) => (
                   <Ionicons
                     key={star}
                     name={star <= Math.round(station.rating) ? 'star' : 'star-outline'}
@@ -220,7 +264,7 @@ export default function StationDetailScreen() {
             </View>
           </View>
 
-          {reviews.map(review => (
+          {reviews.map((review) => (
             <View key={review.id} style={styles.reviewCard}>
               <View style={styles.reviewHeader}>
                 <Text style={styles.reviewAuthor}>{review.author}</Text>
@@ -232,16 +276,20 @@ export default function StationDetailScreen() {
 
           <TouchableOpacity
             style={styles.writeReviewBtn}
-            onPress={() => router.push(`/review/${station.id}`)}
+            onPress={() => {
+              Haptics.selectionAsync();
+              router.push(`/review/${station.id}`);
+            }}
             accessibilityRole="button"
+            accessibilityLabel="Escrever uma avaliação para esta estação"
           >
             <Ionicons name="create" size={18} color={Colors.primary} />
             <Text style={styles.writeReviewText}>Escrever uma Avaliação</Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </ScrollView>
 
-      {/* Barra de ação */}
+      {/* Barra de Ação Inferior */}
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, Spacing.lg) }]}>
         <View>
           <Text style={styles.priceLabel}>R$/kWh</Text>
@@ -249,8 +297,9 @@ export default function StationDetailScreen() {
         </View>
         <TouchableOpacity
           style={styles.navigateBtn}
-          onPress={() => openDirections(station)}
+          onPress={handleDirections}
           accessibilityRole="button"
+          accessibilityLabel="Iniciar rota de navegação até este eletroposto"
         >
           <Ionicons name="navigate" size={18} color={Colors.background} />
           <Text style={styles.navigateBtnText}>Iniciar Rota</Text>
@@ -263,13 +312,15 @@ export default function StationDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
 
-  // Estado vazio
   notFound: { alignItems: 'center', justifyContent: 'center', gap: Spacing.md, paddingHorizontal: Spacing.xl },
   notFoundTitle: { ...Typography.titleSmall, color: Colors.textPrimary, textAlign: 'center' },
   notFoundText: { ...Typography.bodyMedium, color: Colors.textMuted, textAlign: 'center' },
   notFoundBtn: {
-    marginTop: Spacing.md, paddingHorizontal: Spacing.xxl, paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md, backgroundColor: Colors.primary,
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.xxl,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.primary,
   },
   notFoundBtnText: { ...Typography.headingMedium, fontSize: 16, color: Colors.background },
 
@@ -284,15 +335,28 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.borderSubtle,
   },
   headerBtn: {
-    width: 40, height: 40, borderRadius: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: Colors.surfaceLow,
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  headerTitle: { ...Typography.headingMedium, color: Colors.textPrimary, flex: 1, textAlign: 'center', marginHorizontal: Spacing.sm },
+  headerTitle: {
+    ...Typography.headingMedium,
+    color: Colors.textPrimary,
+    flex: 1,
+    textAlign: 'center',
+    marginHorizontal: Spacing.sm,
+  },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.lg, paddingBottom: 140, gap: Spacing.xxl },
+  scrollContent: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
+    paddingBottom: 140,
+    gap: Spacing.lg,
+  },
 
-  // Hero
   hero: { height: 256, borderRadius: BorderRadius.lg, overflow: 'hidden', position: 'relative' },
   heroGradient: { ...StyleSheet.absoluteFillObject, justifyContent: 'flex-end', padding: Spacing.lg, zIndex: 2 },
   heroIcon: { position: 'absolute', right: 20, top: 20, zIndex: 1 },
@@ -303,20 +367,28 @@ const styles = StyleSheet.create({
   heroAddressText: { ...Typography.bodySmall, color: Colors.textSecondary, flex: 1 },
   heroMeta: { ...Typography.caption, color: Colors.textMuted },
   ratingBadge: {
-    backgroundColor: Colors.surfaceCard, borderRadius: BorderRadius.md,
-    padding: Spacing.md, alignItems: 'center', borderWidth: 1, borderColor: Colors.borderSubtle,
+    backgroundColor: Colors.surfaceCard,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
   },
   ratingTop: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   ratingValue: { ...Typography.headingMedium, color: Colors.textPrimary },
   ratingCount: { ...Typography.caption, color: Colors.textMuted, marginTop: 4 },
 
-  // Cards
   bentoSection: { gap: Spacing.sm },
   bentoRow: { flexDirection: 'row', gap: Spacing.sm },
   bentoFlex: { flex: 1 },
   bentoCard: {
-    backgroundColor: Colors.surfaceSolid, borderRadius: BorderRadius.lg,
-    padding: Spacing.lg, gap: 4, borderWidth: 1, borderColor: Colors.borderSubtle, overflow: 'hidden',
+    backgroundColor: Colors.surfaceSolid,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
+    overflow: 'hidden',
   },
   bentoIconRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
   bentoIconBox: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
@@ -325,34 +397,69 @@ const styles = StyleSheet.create({
   bentoValue: { ...Typography.headingLarge, color: Colors.textPrimary },
   bentoLabel: { ...Typography.caption, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 1 },
   bentoAccentLine: {
-    position: 'absolute', left: 0, top: 0, bottom: 0, width: 4,
-    backgroundColor: Colors.available, borderTopLeftRadius: BorderRadius.lg, borderBottomLeftRadius: BorderRadius.lg,
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    backgroundColor: Colors.available,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderBottomLeftRadius: BorderRadius.lg,
   },
 
-  // Seções
+  quietHoursCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceSolid,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(0,255,102,0.25)',
+    gap: Spacing.md,
+  },
+  quietHoursIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(0,255,102,0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quietHoursContent: { flex: 1, gap: 2 },
+  quietHoursTitle: { ...Typography.bodySmall, color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5 },
+  quietHoursTime: { ...Typography.headingMedium, color: Colors.textPrimary, fontSize: 15 },
+
   section: {
-    backgroundColor: Colors.surfaceSolid, borderRadius: BorderRadius.lg,
-    padding: Spacing.lg, gap: Spacing.lg, borderWidth: 1, borderColor: Colors.borderSubtle,
+    backgroundColor: Colors.surfaceSolid,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    gap: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.borderSubtle,
   },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionTitle: { ...Typography.headingMedium, color: Colors.textPrimary },
   todayBadge: { backgroundColor: Colors.surfaceLow, borderRadius: BorderRadius.full, paddingHorizontal: Spacing.md, paddingVertical: 4 },
   todayText: { ...Typography.bodySmall, color: Colors.primary },
 
-  // Comodidades
   amenitiesRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-around', gap: Spacing.md },
   amenityItem: { alignItems: 'center', gap: 8 },
-  amenityIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.surfaceLow, alignItems: 'center', justifyContent: 'center' },
+  amenityIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.surfaceLow,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   amenityText: { ...Typography.bodySmall, color: Colors.textSecondary },
 
-  // Gráfico
   chartContainer: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: CHART_HEIGHT + 20 },
   barContainer: { flex: 1, justifyContent: 'flex-end' },
   bar: { borderRadius: 4, width: '100%', minHeight: 8 },
   chartLabels: { flexDirection: 'row', justifyContent: 'space-between' },
   chartLabel: { ...Typography.bodySmall, color: Colors.textMuted },
 
-  // Avaliações
   reviewSummary: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg },
   reviewScore: { ...Typography.titleLarge, color: Colors.textPrimary, fontSize: 36 },
   starsRow: { flexDirection: 'row', gap: 2 },
@@ -363,26 +470,46 @@ const styles = StyleSheet.create({
   reviewDate: { ...Typography.bodySmall, color: Colors.textMuted },
   reviewText: { ...Typography.bodyMedium, color: Colors.textSecondary },
   writeReviewBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm,
-    borderWidth: 1, borderColor: Colors.borderLight, borderRadius: BorderRadius.md, paddingVertical: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.lg,
   },
   writeReviewText: { ...Typography.headingMedium, color: Colors.primary, fontSize: 16 },
 
-  // Barra inferior
   bottomBar: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: Colors.surfaceSolid, borderTopWidth: 1, borderTopColor: Colors.borderSubtle,
-    paddingHorizontal: Spacing.xl, paddingTop: Spacing.lg,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.surfaceSolid,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderSubtle,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
   },
   priceLabel: { ...Typography.bodySmall, color: Colors.textMuted },
   priceValue: { ...Typography.headingLarge, color: Colors.primary },
   navigateBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-    backgroundColor: Colors.primary, borderRadius: BorderRadius.md,
-    paddingHorizontal: Spacing.xxl, paddingVertical: Spacing.lg,
-    shadowColor: Colors.primary, shadowOpacity: 0.3, shadowRadius: 15,
-    shadowOffset: { width: 0, height: 0 }, elevation: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.xxl,
+    paddingVertical: Spacing.lg,
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 8,
   },
   navigateBtnText: { ...Typography.headingMedium, color: Colors.background, fontSize: 16 },
 });
