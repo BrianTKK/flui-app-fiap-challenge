@@ -5,7 +5,7 @@ import {
   getAvailableConnections,
   getTotalConnections,
 } from '@/lib/stations';
-import React from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View } from 'react-native';
 import { Marker } from 'react-native-maps';
 
@@ -18,32 +18,48 @@ export default function StationMarker({ station, onPress }: StationMarkerProps) 
   const total = getTotalConnections(station);
   const available = getAvailableConnections(station);
   const percentage = getAvailabilityPercentage(station);
-  const color = available > 0 ? Colors.available : Colors.occupied;
+  const isAvailable = available > 0;
+  const statusColor = isAvailable ? Colors.available : Colors.occupied;
+
+  // Extrai a potência do mock (suporta number, string ou connectors)
+  const power = (station as any).power ?? 
+    (station.connectors?.length ? Math.max(...station.connectors.map((c: any) => c.powerKW || 0)) : 50);
 
   return (
     <Marker
       coordinate={{ latitude: station.latitude, longitude: station.longitude }}
       onPress={onPress}
-      // `anchor` posiciona a ponta do triangulo na coordenada (Android);
-      // `centerOffset` faz o mesmo no iOS.
       anchor={{ x: 0.5, y: 1 }}
       centerOffset={{ x: 0, y: -10 }}
+      tracksViewChanges={false}
+      accessibilityRole="button"
+      accessibilityLabel={`Eletroposto ${station.name}, potência de ${power} quilowatts, ${available} de ${total} conectores livres.`}
     >
       <View style={styles.container}>
-        {/* Fracao de conectores livres */}
-        <View style={styles.fractionBox}>
-          <Text style={styles.fractionText}>
-            {available}/{total}
-          </Text>
+        {/* Caixa Principal com Potência e Disponibilidade */}
+        <View style={[styles.mainBadge, { borderColor: statusColor }]}>
+          <View style={styles.badgeTopRow}>
+            <Ionicons name="flash" size={11} color={statusColor} />
+            <Text style={styles.powerText}>{power}k</Text>
+            <View style={styles.divider} />
+            <Text style={[styles.fractionText, { color: statusColor }]}>
+              {available}/{total}
+            </Text>
+          </View>
+
+          {/* Mini barra de ocupação */}
+          <View style={styles.progressBarBg}>
+            <View
+              style={[
+                styles.progressBarFill,
+                { width: `${percentage}%`, backgroundColor: statusColor },
+              ]}
+            />
+          </View>
         </View>
 
-        {/* Barra de progresso */}
-        <View style={styles.progressBarBg}>
-          <View style={[styles.progressBarFill, { width: `${percentage}%`, backgroundColor: color }]} />
-        </View>
-
-        {/* Ponta do pino */}
-        <View style={[styles.triangle, { borderTopColor: color }]} />
+        {/* Ponta do Pino */}
+        <View style={[styles.triangle, { borderTopColor: statusColor }]} />
       </View>
     </Marker>
   );
@@ -54,24 +70,45 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  fractionBox: {
-    backgroundColor: 'rgba(20,20,20,0.95)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 4,
+  mainBadge: {
+    backgroundColor: '#0F172A',
+    paddingHorizontal: 7,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.35,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  badgeTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  powerText: {
+    color: '#F8FAFC',
+    fontSize: 10,
+    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
+  },
+  divider: {
+    width: 1,
+    height: 9,
+    backgroundColor: '#334155',
+    marginHorizontal: 2,
   },
   fractionText: {
-    color: '#FFF',
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: '700',
+    fontFamily: 'Inter_700Bold',
   },
   progressBarBg: {
-    width: 30,
-    height: 4,
-    backgroundColor: '#333',
-    marginTop: 2,
+    width: '100%',
+    height: 3,
+    backgroundColor: '#1E293B',
+    marginTop: 3,
     borderRadius: 2,
     overflow: 'hidden',
   },
@@ -83,10 +120,10 @@ const styles = StyleSheet.create({
     height: 0,
     backgroundColor: 'transparent',
     borderStyle: 'solid',
-    borderTopWidth: 6,
-    borderRightWidth: 5,
+    borderTopWidth: 5,
+    borderRightWidth: 4.5,
     borderBottomWidth: 0,
-    borderLeftWidth: 5,
+    borderLeftWidth: 4.5,
     borderRightColor: 'transparent',
     borderBottomColor: 'transparent',
     borderLeftColor: 'transparent',
