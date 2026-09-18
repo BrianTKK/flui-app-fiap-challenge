@@ -6,12 +6,14 @@ import { ChargingStation, ConnectorType } from '@/constants/mockData';
  * Os valores sao normalizados para tolerar dados inconsistentes da API.
  */
 export function getAvailableConnections(station: ChargingStation): number {
+  if (!station) return 0;
   const total = Math.max(0, station.totalConnections ?? 0);
   const occupied = Math.min(Math.max(0, station.occupiedConnections ?? 0), total);
   return total - occupied;
 }
 
 export function getTotalConnections(station: ChargingStation): number {
+  if (!station) return 0;
   return Math.max(0, station.totalConnections ?? 0);
 }
 
@@ -41,13 +43,14 @@ export const DEFAULT_FILTERS: StationFilters = {
 };
 
 /** Quantos grupos de filtro estao ativos - usado no badge da lupa. */
-export function countActiveFilters(filters: StationFilters): number {
-  return (
-    (filters.connectors.length > 0 ? 1 : 0) +
-    (filters.minPower > 0 ? 1 : 0) +
-    (filters.availableOnly ? 1 : 0) +
-    (filters.amenities.length > 0 ? 1 : 0)
-  );
+export function countActiveFilters(filters?: StationFilters): number {
+  if (!filters) return 0;
+  const connectorsCount = (filters.connectors && filters.connectors.length > 0) ? 1 : 0;
+  const powerCount = (filters.minPower && filters.minPower > 0) ? 1 : 0;
+  const availableCount = filters.availableOnly ? 1 : 0;
+  const amenitiesCount = (filters.amenities && filters.amenities.length > 0) ? 1 : 0;
+
+  return connectorsCount + powerCount + availableCount + amenitiesCount;
 }
 
 export function filterStations(
@@ -55,33 +58,51 @@ export function filterStations(
   search: string,
   filters: StationFilters = DEFAULT_FILTERS
 ): ChargingStation[] {
-  const term = search.trim().toLowerCase();
+  if (!list || !Array.isArray(list)) return [];
+  const activeFilters = filters || DEFAULT_FILTERS;
+  const term = (search || '').trim().toLowerCase();
 
   return list.filter(station => {
-    if (
-      term !== '' &&
-      !station.name.toLowerCase().includes(term) &&
-      !station.address.toLowerCase().includes(term)
-    ) {
+    if (!station) return false;
+
+    // 1. Busca textual por nome ou endereço
+    if (term !== '') {
+      const name = (station.name || '').toLowerCase();
+      const address = (station.address || '').toLowerCase();
+      if (!name.includes(term) && !address.includes(term)) {
+        return false;
+      }
+    }
+
+    // 2. Filtro de apenas estações disponíveis
+    if (activeFilters.availableOnly && !isStationAvailable(station)) {
       return false;
     }
 
-    if (filters.availableOnly && !isStationAvailable(station)) return false;
-
-    if (station.power < filters.minPower) return false;
-
-    if (
-      filters.connectors.length > 0 &&
-      !filters.connectors.some(c => station.connectors.includes(c))
-    ) {
+    // 3. Filtro por potência mínima
+    if ((station.power ?? 0) < (activeFilters.minPower ?? 0)) {
       return false;
     }
 
-    if (
-      filters.amenities.length > 0 &&
-      !filters.amenities.every(a => station.amenities.includes(a))
-    ) {
-      return false;
+    // 4. Filtro por conectores selecionados
+    if (activeFilters.connectors && activeFilters.connectors.length > 0) {
+      const stationConnectors = station.connectors || [];
+      const hasMatchingConnector = activeFilters.connectors.some(c => {
+        return stationConnectors.some(sc => {
+          // Trata tanto se for array de string quanto se for array de objetos { type: 'CCS2' }
+          return typeof sc === 'string' ? sc === c : (sc as any)?.type === c;
+        });
+      });
+      if (!hasMatchingConnector) return false;
+    }
+
+    // 5. Filtro por comodidades (amenities)
+    if (activeFilters.amenities && activeFilters.amenities.length > 0) {
+      const stationAmenities = station.amenities || [];
+      const hasAllAmenities = activeFilters.amenities.every(a =>
+        stationAmenities.includes(a)
+      );
+      if (!hasAllAmenities) return false;
     }
 
     return true;
